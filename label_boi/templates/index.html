@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LABEL TOOL</title>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>
+    <script>
+        function updateTime() {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+            document.getElementById('currentTime').textContent = `São Paulo · Brazil · ${hours}:${minutes}:${seconds}:${milliseconds}`;
+        }
+        setInterval(updateTime, 1);
+
+        function hideElements() {
+            document.querySelector('.top-left').style.display = 'none';
+            document.querySelector('.footer-text').style.display = 'none';
+        }
+    </script>
+</head>
+<body>
+    <div class="top-left">
+        <p id="currentTime">São Paulo · Brazil · 00:00:00:000</p>
+        <p>GMT-3</p>
+    </div>
+
+    <div class="container">
+        <h1><strong>"LABEL TOOL"</strong></h1>
+        
+        <div id="uploadSection" class="section">
+            <div class="drop-area" id="dropArea">
+                <input type="file" id="videoInput" accept="video/*" hidden>
+            </div>
+            <button id="uploadButton" class="btn" onclick="hideElements()">Upload Video</button>
+        </div>
+
+        <div id="configSection" class="section" style="display:none;">
+            <h3>frames per second</h2>
+            <input type="number" id="interval" min="1" value="30">
+            
+            <div class="time-slider-container">
+                <div id="timeValues">
+                    <span id="startTimeValue">0:00</span>
+                    <span id="endTimeValue">0:00</span>
+                </div>
+                <div id="timeSlider"></div>
+            </div>
+            
+            <button id="fragmentButton" class="btn">Process Video</button>
+        </div>
+
+        <div id="cropSection" class="section" style="display:none;">
+            <div id="imageContainer">
+                <button id="previousButton" class="side-button">&lt;</button>
+                <img id="image" src="" alt="Frame to crop">
+                <button id="nextButton" class="side-button">&gt;</button>
+                <div id="cropArea"></div>
+            </div>
+            <div class="controls">
+                <button id="cropButton" class="btn"><strong>crop</strong></button>
+            </div>
+        </div>
+
+        <p id="statusMessage"></p>
+        
+    </div>
+
+    <p class="footer-text">HENRIQUE GODOY</p>
+
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+</body>
+</html>
