@@ -1,0 +1,24 @@
+#imageContainer {
+    position: relative;
+    display: inline-block;
+}
+
+#image {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}
+
+#cropArea {
+    position: absolute;
+    border: 2px dashed #ff0000;
+    width: 60px;
+    height: 60px;
+    display: none;
+    cursor: move;
+    z-index: 10; /* Garante que o cropArea fique acima da imagem */
+}
+
+body {
+    user-select: none; /* Evita a seleção de texto acidental ao mover o cropArea */
+}
