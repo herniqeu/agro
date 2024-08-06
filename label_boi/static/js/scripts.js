@@ -12,11 +12,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const image = document.getElementById('image');
     const cropArea = document.getElementById('cropArea');
     const statusMessage = document.getElementById('statusMessage');
+    const cropCountElement = document.getElementById('cropCount');
 
     let frames = [];
     let currentFrameIndex = 0;
     let currentVideoFile = null;
     let videoDuration = 0;
+    let cropCount = 0;
 
     function formatTime(seconds) {
         const minutes = Math.floor(seconds / 60);
@@ -94,6 +96,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     fragmentButton.addEventListener('click', () => {
         const interval = document.getElementById('interval').value;
+        const frameSize = document.getElementById('frameSize').value;
         const startTime = $("#timeSlider").slider("values", 0);
         const endTime = $("#timeSlider").slider("values", 1);
 
@@ -105,6 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
             body: JSON.stringify({
                 filename: currentVideoFile,
                 interval: interval,
+                frame_size: frameSize,
                 start_time: startTime,
                 end_time: endTime
             }),
@@ -130,8 +134,9 @@ document.addEventListener('DOMContentLoaded', function() {
             currentFrameIndex = index;
             image.src = '/frames/' + frames[index];
             // Reset crop area
-            cropArea.style.width = '100px';
-            cropArea.style.height = '100px';
+            const frameSize = document.getElementById('frameSize').value - 3;
+            cropArea.style.width = `${frameSize}px`;
+            cropArea.style.height = `${frameSize}px`;
             cropArea.style.left = '0px';
             cropArea.style.top = '0px';
         }
@@ -169,6 +174,8 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             statusMessage.textContent = data.message;
+            cropCount++;
+            cropCountElement.textContent = `Cropped images: ${cropCount}`;
             if (currentFrameIndex < frames.length - 1) {
                 loadFrame(currentFrameIndex + 1);
             }

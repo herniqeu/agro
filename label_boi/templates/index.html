@@ -45,6 +45,9 @@
             <h3>frames per second</h2>
             <input type="number" id="interval" min="1" value="30">
             
+            <h3>frame size</h3>
+            <input type="number" id="frameSize" min="1" value="60">
+            
             <div class="time-slider-container">
                 <div id="timeValues">
                     <span id="startTimeValue">0:00</span>
@@ -66,6 +69,7 @@
             <div class="controls">
                 <button id="cropButton" class="btn"><strong>crop</strong></button>
             </div>
+            <p id="cropCount">Cropped images: 0</p>
         </div>
 
         <p id="statusMessage"></p>

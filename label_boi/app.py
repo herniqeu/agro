@@ -42,6 +42,7 @@ def fragment_video():
     data = request.json
     filename = data['filename']
     interval = int(data['interval'])
+    frame_size = int(data['frame_size']) - 3
     start_time = data['start_time']
     end_time = data['end_time']
 
