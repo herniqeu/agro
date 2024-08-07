@@ -2,19 +2,30 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from PIL import Image
 import os
 import cv2
+import numpy as np
+import base64
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 PROCESSED_FOLDER = 'processed'
 FRAMES_FOLDER = 'frames'
+SEGMENTED_FOLDER = 'segmented'
 
-for folder in [UPLOAD_FOLDER, PROCESSED_FOLDER, FRAMES_FOLDER]:
+for folder in [UPLOAD_FOLDER, PROCESSED_FOLDER, FRAMES_FOLDER, SEGMENTED_FOLDER]:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/processed/<path:filename>')
+def processed_files(filename):
+    return send_from_directory(PROCESSED_FOLDER, filename)
+
+@app.route('/segmented/<path:filename>')
+def segmented_files(filename):
+    return send_from_directory(SEGMENTED_FOLDER, filename)
 
 @app.route('/upload_video', methods=['POST'])
 def upload_video():
@@ -93,6 +104,48 @@ def crop_image():
     processed_path = os.path.join(PROCESSED_FOLDER, filename)
     cropped_img.save(processed_path)
     return jsonify({"message": "Concluído!"})
+
+@app.route('/get_processed_images')
+def get_processed_images():
+    images = [f for f in os.listdir(PROCESSED_FOLDER) if f.endswith(('.png', '.jpg', '.jpeg'))]
+    return jsonify({"images": images})
+
+@app.route('/apply_segmentation', methods=['POST'])
+def apply_segmentation():
+    data = request.json
+    image_data = data['image'].split(',')[1]
+    filename = data['filename']
+
+    # Decode base64 image
+    img_data = base64.b64decode(image_data)
+    img_array = np.frombuffer(img_data, np.uint8)
+    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+
+    if img is None:
+        return jsonify({"message": "Failed to decode image."}), 400
+
+    # Convert to HSV color space
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+
+    # Define range for red color and create a mask
+    lower_red1 = np.array([0, 70, 50])
+    upper_red1 = np.array([10, 255, 255])
+    lower_red2 = np.array([170, 70, 50])
+    upper_red2 = np.array([180, 255, 255])
+
+    mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+    mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
+    mask = cv2.bitwise_or(mask1, mask2)
+
+    # Create an output image with red traces in black and the rest in white
+    output = cv2.bitwise_not(mask)
+
+    # Save the segmented image
+    segmented_filename = os.path.splitext(filename)[0] + '_segmented.png'
+    segmented_path = os.path.join(SEGMENTED_FOLDER, segmented_filename)
+    cv2.imwrite(segmented_path, output)
+
+    return jsonify({"message": "Segmentation applied successfully!"})
 
 if __name__ == '__main__':
     app.run(debug=True)

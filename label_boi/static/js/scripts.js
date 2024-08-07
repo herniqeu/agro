@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const uploadSection = document.getElementById('uploadSection');
     const configSection = document.getElementById('configSection');
     const cropSection = document.getElementById('cropSection');
+    const segmentationSection = document.getElementById('segmentationSection');
     const dropArea = document.getElementById('dropArea');
     const videoInput = document.getElementById('videoInput');
     const uploadButton = document.getElementById('uploadButton');
@@ -10,15 +11,22 @@ document.addEventListener('DOMContentLoaded', function() {
     const nextButton = document.getElementById('nextButton');
     const cropButton = document.getElementById('cropButton');
     const image = document.getElementById('image');
+    const imageSegmentation = document.getElementById('imageSegmentation');
     const cropArea = document.getElementById('cropArea');
     const statusMessage = document.getElementById('statusMessage');
     const cropCountElement = document.getElementById('cropCount');
+    const segmentationCanvas = document.getElementById('segmentationCanvas');
+    const applySegmentationButton = document.getElementById('applySegmentationButton');
+    const previousButtonSegmentation = document.getElementById('previousButtonSegmentation');
+    const nextButtonSegmentation = document.getElementById('nextButtonButtonSegmentation');
 
     let frames = [];
     let currentFrameIndex = 0;
     let currentVideoFile = null;
     let videoDuration = 0;
     let cropCount = 0;
+    let segmentationImages = [];
+    let currentSegmentationIndex = 0;
 
     function formatTime(seconds) {
         const minutes = Math.floor(seconds / 60);
@@ -133,12 +141,25 @@ document.addEventListener('DOMContentLoaded', function() {
         if (index >= 0 && index < frames.length) {
             currentFrameIndex = index;
             image.src = '/frames/' + frames[index];
-            // Reset crop area
-            const frameSize = document.getElementById('frameSize').value - 3;
-            cropArea.style.width = `${frameSize}px`;
-            cropArea.style.height = `${frameSize}px`;
-            cropArea.style.left = '0px';
-            cropArea.style.top = '0px';
+    
+            // Espera a imagem carregar para obter suas dimensões
+            image.onload = function() {
+                const frameWidth = image.width;
+                const frameHeight = image.height;
+
+                const originalWidth = image.naturalWidth;
+                const originalHeight = image.naturalHeight;
+
+                const originalArea = originalWidth * originalHeight;
+                const frameArea = frameWidth * frameHeight;
+
+                // Ajusta o tamanho e posição do cropArea
+                const frameSize = document.getElementById('frameSize').value - 3;
+                cropArea.style.width = `${frameSize}px`;
+                cropArea.style.height = `${frameSize}px`;
+                cropArea.style.left = '0px';
+                cropArea.style.top = '0px';
+            };
         }
     }
 
@@ -219,5 +240,102 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('mouseup', () => {
         isDragging = false;
         isResizing = false;
+    });
+
+    function loadSegmentationImages() {
+        fetch('/get_processed_images')
+            .then(response => response.json())
+            .then(data => {
+                segmentationImages = data.images;
+                if (segmentationImages.length > 0) {
+                    loadSegmentationImage(0);
+                }
+            });
+    }
+
+    function loadSegmentationImage(index) {
+        if (index >= 0 && index < segmentationImages.length) {
+            currentSegmentationIndex = index;
+            const img = new Image();
+            img.onload = function() {
+                segmentationCanvas.width = img.width;
+                segmentationCanvas.height = img.height;
+                const ctx = segmentationCanvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = '/processed/' + segmentationImages[index];
+        }
+    }
+
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    segmentationCanvas.addEventListener('mousedown', startDrawing);
+    segmentationCanvas.addEventListener('mousemove', draw);
+    segmentationCanvas.addEventListener('mouseup', stopDrawing);
+    segmentationCanvas.addEventListener('mouseout', stopDrawing);
+
+    function startDrawing(e) {
+        isDrawing = true;
+        [lastX, lastY] = [e.offsetX, e.offsetY];
+    }
+
+    function draw(e) {
+        if (!isDrawing) return;
+        const ctx = segmentationCanvas.getContext('2d');
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(e.offsetX, e.offsetY);
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 10;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+        [lastX, lastY] = [e.offsetX, e.offsetY];
+    }
+
+    function stopDrawing() {
+        isDrawing = false;
+    }
+
+    showSegmentationButton.addEventListener('click', () => {
+
+        document.querySelectorAll('.section').forEach(section => {
+            section.style.display = 'none';
+        });
+        
+        segmentationSection.style.display = 'block';
+        
+        loadSegmentationImages();
+    });
+
+    previousButtonSegmentation.addEventListener('click', () => {
+        if (currentSegmentationIndex > 0) {
+            loadSegmentationImage(currentSegmentationIndex - 1);
+        }
+    });
+
+    nextButtonSegmentation.addEventListener('click', () => {
+        if (currentSegmentationIndex < segmentationImages.length - 1) {
+            loadSegmentationImage(currentSegmentationIndex + 1);
+        }
+    });
+
+    applySegmentationButton.addEventListener('click', () => {
+        const imageData = segmentationCanvas.toDataURL('image/png');
+        fetch('/apply_segmentation', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                image: imageData,
+                filename: segmentationImages[currentSegmentationIndex]
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            statusMessage.textContent = data.message;
+        });
     });
 });
