@@ -6,10 +6,10 @@ import numpy as np
 import base64
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
-PROCESSED_FOLDER = 'processed'
-FRAMES_FOLDER = 'frames'
-SEGMENTED_FOLDER = 'segmented'
+UPLOAD_FOLDER = 'files/uploads'
+PROCESSED_FOLDER = 'files/processed'
+FRAMES_FOLDER = 'files/frames'
+SEGMENTED_FOLDER = 'files/segmented'
 
 for folder in [UPLOAD_FOLDER, PROCESSED_FOLDER, FRAMES_FOLDER, SEGMENTED_FOLDER]:
     if not os.path.exists(folder):
