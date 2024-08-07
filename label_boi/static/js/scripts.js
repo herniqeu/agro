@@ -20,6 +20,39 @@ document.addEventListener('DOMContentLoaded', function() {
     const previousButtonSegmentation = document.getElementById('previousButtonSegmentation');
     const nextButtonSegmentation = document.getElementById('nextButtonButtonSegmentation');
 
+    const showSegmentationButton = document.getElementById('showSegmentationButton');
+
+    function showSegmentationSection() {
+        console.log("Botão Segmentation clicado");
+        document.querySelectorAll('.section').forEach(section => {
+            section.style.display = 'none';
+        });
+        segmentationSection.style.display = 'block';
+        loadSegmentationImages();
+    }
+
+    function loadSegmentationImages() {
+        console.log("Carregando imagens de segmentação");
+        fetch('/get_processed_images')
+            .then(response => response.json())
+            .then(data => {
+                segmentationImages = data.images;
+                console.log("Imagens carregadas:", segmentationImages);
+                if (segmentationImages.length > 0) {
+                    loadSegmentationImage(0);
+                } else {
+                    console.log("Nenhuma imagem processada encontrada.");
+                    statusMessage.textContent = "Nenhuma imagem processada encontrada.";
+                }
+            })
+            .catch(error => {
+                console.error("Erro ao carregar imagens:", error);
+                statusMessage.textContent = "Erro ao carregar imagens.";
+            });
+    }
+
+    showSegmentationButton.addEventListener('click', showSegmentationSection);
+
     let frames = [];
     let currentFrameIndex = 0;
     let currentVideoFile = null;
@@ -65,13 +98,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleVideoUpload(file) {
         const formData = new FormData();
         formData.append('file', file);
-
+    
+        const loadingInterval = animateLoadingText('statusMessage', 'Uploading video');
+    
         fetch('/upload_video', {
             method: 'POST',
             body: formData
         })
         .then(response => response.json())
         .then(data => {
+            clearInterval(loadingInterval);
             if (data.error) {
                 statusMessage.textContent = data.error;
             } else {
@@ -80,9 +116,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 initializeTimeSlider();
                 uploadSection.style.display = 'none';
                 configSection.style.display = 'block';
+                statusMessage.textContent = '';
             }
         })
         .catch(error => {
+            clearInterval(loadingInterval);
             statusMessage.textContent = 'Error uploading video: ' + error;
         });
     }
@@ -103,11 +141,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     fragmentButton.addEventListener('click', () => {
-        const interval = document.getElementById('interval').value;
+        const framesPerSecond = document.getElementById('framesPerSecond').value;
         const frameSize = document.getElementById('frameSize').value;
         const startTime = $("#timeSlider").slider("values", 0);
         const endTime = $("#timeSlider").slider("values", 1);
-
+    
+        const loadingInterval = animateLoadingText('statusMessage', 'Loading process');
+    
         fetch('/fragment_video', {
             method: 'POST',
             headers: {
@@ -115,7 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({
                 filename: currentVideoFile,
-                interval: interval,
+                frames_per_second: framesPerSecond,
                 frame_size: frameSize,
                 start_time: startTime,
                 end_time: endTime
@@ -123,6 +163,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
+            clearInterval(loadingInterval);
             if (data.error) {
                 statusMessage.textContent = data.error;
             } else {
@@ -130,35 +171,56 @@ document.addEventListener('DOMContentLoaded', function() {
                 configSection.style.display = 'none';
                 cropSection.style.display = 'block';
                 loadFrame(0);
+                statusMessage.textContent = '';
             }
         })
         .catch(error => {
+            clearInterval(loadingInterval);
             statusMessage.textContent = 'Error processing video: ' + error;
         });
     });
+
+    function animateLoadingText(elementId, baseText) {
+        let dots = 0;
+        return setInterval(() => {
+            const element = document.getElementById(elementId);
+            dots = (dots + 1) % 4;
+            element.textContent = baseText + '.'.repeat(dots);
+        }, 500);
+    }
 
     function loadFrame(index) {
         if (index >= 0 && index < frames.length) {
             currentFrameIndex = index;
             image.src = '/frames/' + frames[index];
     
-            // Espera a imagem carregar para obter suas dimensões
             image.onload = function() {
-                const frameWidth = image.width;
-                const frameHeight = image.height;
-
+                const containerWidth = 600;
+                const containerHeight = 400;
+                
                 const originalWidth = image.naturalWidth;
                 const originalHeight = image.naturalHeight;
-
-                const originalArea = originalWidth * originalHeight;
-                const frameArea = frameWidth * frameHeight;
-
-                // Ajusta o tamanho e posição do cropArea
-                const frameSize = document.getElementById('frameSize').value - 3;
-                cropArea.style.width = `${frameSize}px`;
-                cropArea.style.height = `${frameSize}px`;
+                
+                const scale = Math.min(containerWidth / originalWidth, containerHeight / originalHeight);
+                
+                const scaledWidth = originalWidth * scale;
+                const scaledHeight = originalHeight * scale;
+                
+                image.style.width = `${scaledWidth}px`;
+                image.style.height = `${scaledHeight}px`;
+    
+                const frameSize = document.getElementById('frameSize').value;
+                const scaledFrameSize = frameSize * scale;
+                
+                cropArea.style.width = `${scaledFrameSize}px`;
+                cropArea.style.height = `${scaledFrameSize}px`;
                 cropArea.style.left = '0px';
                 cropArea.style.top = '0px';
+    
+                // Store original dimensions and scale for use in cropping
+                image.dataset.originalWidth = originalWidth;
+                image.dataset.originalHeight = originalHeight;
+                image.dataset.scale = scale;
             };
         }
     }
@@ -175,10 +237,23 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    document.getElementById('brushSize').addEventListener('input', function() {
+        document.getElementById('brushSizeValue').textContent = this.value;
+    });
+
     cropButton.addEventListener('click', () => {
         const rect = cropArea.getBoundingClientRect();
         const imageRect = image.getBoundingClientRect();
-
+    
+        const scale = parseFloat(image.dataset.scale);
+        const originalWidth = parseInt(image.dataset.originalWidth);
+        const originalHeight = parseInt(image.dataset.originalHeight);
+    
+        const x = (rect.left - imageRect.left) / scale;
+        const y = (rect.top - imageRect.top) / scale;
+        const width = rect.width / scale;
+        const height = rect.height / scale;
+    
         fetch('/crop', {
             method: 'POST',
             headers: {
@@ -186,10 +261,12 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({
                 filename: frames[currentFrameIndex],
-                x: rect.left - imageRect.left,
-                y: rect.top - imageRect.top,
-                width: rect.width,
-                height: rect.height
+                x: x,
+                y: y,
+                width: width,
+                height: height,
+                originalWidth: originalWidth,
+                originalHeight: originalHeight
             }),
         })
         .then(response => response.json())
@@ -242,26 +319,31 @@ document.addEventListener('DOMContentLoaded', function() {
         isResizing = false;
     });
 
-    function loadSegmentationImages() {
-        fetch('/get_processed_images')
-            .then(response => response.json())
-            .then(data => {
-                segmentationImages = data.images;
-                if (segmentationImages.length > 0) {
-                    loadSegmentationImage(0);
-                }
-            });
-    }
-
     function loadSegmentationImage(index) {
         if (index >= 0 && index < segmentationImages.length) {
             currentSegmentationIndex = index;
             const img = new Image();
             img.onload = function() {
-                segmentationCanvas.width = img.width;
-                segmentationCanvas.height = img.height;
+                const containerWidth = 600;
+                const containerHeight = 400;
+                
+                const originalWidth = img.naturalWidth;
+                const originalHeight = img.naturalHeight;
+                
+                const scale = Math.min(containerWidth / originalWidth, containerHeight / originalHeight);
+                
+                const scaledWidth = originalWidth * scale;
+                const scaledHeight = originalHeight * scale;
+                
+                segmentationCanvas.width = scaledWidth;
+                segmentationCanvas.height = scaledHeight;
                 const ctx = segmentationCanvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
+                ctx.drawImage(img, 0, 0, scaledWidth, scaledHeight);
+    
+                // Store original dimensions and scale for use in segmentation
+                segmentationCanvas.dataset.originalWidth = originalWidth;
+                segmentationCanvas.dataset.originalHeight = originalHeight;
+                segmentationCanvas.dataset.scale = scale;
             };
             img.src = '/processed/' + segmentationImages[index];
         }
@@ -288,7 +370,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ctx.moveTo(lastX, lastY);
         ctx.lineTo(e.offsetX, e.offsetY);
         ctx.strokeStyle = 'red';
-        ctx.lineWidth = 10;
+        ctx.lineWidth = document.getElementById('brushSize').value;
         ctx.lineCap = 'round';
         ctx.stroke();
         [lastX, lastY] = [e.offsetX, e.offsetY];
@@ -297,17 +379,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function stopDrawing() {
         isDrawing = false;
     }
-
-    showSegmentationButton.addEventListener('click', () => {
-
-        document.querySelectorAll('.section').forEach(section => {
-            section.style.display = 'none';
-        });
-        
-        segmentationSection.style.display = 'block';
-        
-        loadSegmentationImages();
-    });
 
     previousButtonSegmentation.addEventListener('click', () => {
         if (currentSegmentationIndex > 0) {
@@ -322,7 +393,17 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     applySegmentationButton.addEventListener('click', () => {
-        const imageData = segmentationCanvas.toDataURL('image/png');
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const originalWidth = parseInt(segmentationCanvas.dataset.originalWidth);
+        const originalHeight = parseInt(segmentationCanvas.dataset.originalHeight);
+        
+        canvas.width = originalWidth;
+        canvas.height = originalHeight;
+        
+        ctx.drawImage(segmentationCanvas, 0, 0, originalWidth, originalHeight);
+        
+        const imageData = canvas.toDataURL('image/png');
         fetch('/apply_segmentation', {
             method: 'POST',
             headers: {
@@ -330,7 +411,9 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({
                 image: imageData,
-                filename: segmentationImages[currentSegmentationIndex]
+                filename: segmentationImages[currentSegmentationIndex],
+                originalWidth: originalWidth,
+                originalHeight: originalHeight
             }),
         })
         .then(response => response.json())

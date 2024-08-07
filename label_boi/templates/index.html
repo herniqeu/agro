@@ -26,13 +26,13 @@
     </script>
 </head>
 <body>
-    <div class="top-left">
+    <!-- <div class="top-left">
         <p id="currentTime">São Paulo · Brazil · 00:00:00:000</p>
         <p>GMT-3</p>
-    </div>
+    </div> -->
 
     <div class="top-right">
-        <button id="showSegmentationButton" class="btn" onclick="showSegmentationSection()">Segmentation</button>
+        <button id="showSegmentationButton" class="btn">Segmentation</button>
     </div>
 
     <div class="container">
@@ -47,7 +47,7 @@
 
         <div id="configSection" class="section" style="display:none;">
             <h3>frames per second</h3>
-            <input type="number" id="interval" min="1" value="30">
+            <input type="number" id="framesPerSecond" min="1" max="30" value="1">
             
             <h3>frame size</h3>
             <input type="number" id="frameSize" min="1" value="60">
@@ -79,13 +79,16 @@
         </div>
 
         <div id="segmentationSection" class="section" style="display:none;">
+            <div class="brush-size-container">
+                <input type="range" id="brushSize" min="1" max="50" value="10">
+                <span id="brushSizeValue">10</span>
+            </div>
             <div id="segmentationContainer">
                 <canvas id="segmentationCanvas"></canvas>
             </div>
             <button id="previousButtonSegmentation" class="side-button">&lt;</button>
             <button id="nextButtonButtonSegmentation" class="side-button">&gt;</button>
             <div class="controls">
-                
                 <button id="applySegmentationButton" class="btn"><strong>apply</strong></button>
             </div>
             <p id="segmentationMessage"></p>

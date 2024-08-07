@@ -52,21 +52,22 @@ def upload_video():
 def fragment_video():
     data = request.json
     filename = data['filename']
-    interval = int(data['interval'])
+    frames_per_second = int(data['frames_per_second'])
     frame_size = int(data['frame_size']) - 3
     start_time = data['start_time']
     end_time = data['end_time']
 
     filepath = os.path.join(UPLOAD_FOLDER, filename)
     cap = cv2.VideoCapture(filepath)
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    video_fps = cap.get(cv2.CAP_PROP_FPS)
 
-    start_frame = int(float(start_time) * fps)
-    end_frame = int(float(end_time) * fps)
+    start_frame = int(float(start_time) * video_fps)
+    end_frame = int(float(end_time) * video_fps)
 
     if start_frame > cap.get(cv2.CAP_PROP_FRAME_COUNT) or end_frame > cap.get(cv2.CAP_PROP_FRAME_COUNT):
         return jsonify({"error": "The specified time range exceeds the video length."}), 400
 
+    frame_interval = int(video_fps / frames_per_second)
     frame_count = 0
     saved_frame_count = 0
     frame_files = []
@@ -74,8 +75,9 @@ def fragment_video():
         ret, frame = cap.read()
         if not ret or frame_count > end_frame:
             break
-        if frame_count >= start_frame and frame_count % interval == 0:
-            frame_filename = f'frame_{frame_count}.png'
+        if frame_count >= start_frame and frame_count % frame_interval == 0:
+            frame_time = frame_count / video_fps
+            frame_filename = f'{os.path.splitext(filename)[0]}_{frame_time:.2f}.png'
             frame_path = os.path.join(FRAMES_FOLDER, frame_filename)
             cv2.imwrite(frame_path, frame)
             frame_files.append(frame_filename)
@@ -97,12 +99,25 @@ def crop_image():
     y = int(data['y'])
     width = int(data['width'])
     height = int(data['height'])
+    original_width = int(data['originalWidth'])
+    original_height = int(data['originalHeight'])
 
     filepath = os.path.join(FRAMES_FOLDER, filename)
     img = Image.open(filepath)
+    
+    # Ensure the crop area is within the image bounds
+    x = max(0, min(x, original_width - width))
+    y = max(0, min(y, original_height - height))
+    
     cropped_img = img.crop((x, y, x + width, y + height))
-    processed_path = os.path.join(PROCESSED_FOLDER, filename)
+    
+    frame_size = int(request.form.get('frame_size', 60))
+    cropped_img = cropped_img.resize((frame_size, frame_size), Image.LANCZOS)
+    
+    processed_filename = f'{os.path.splitext(filename)[0]}_processed.png'
+    processed_path = os.path.join(PROCESSED_FOLDER, processed_filename)
     cropped_img.save(processed_path)
+    
     return jsonify({"message": "Concluído!"})
 
 @app.route('/get_processed_images')
@@ -141,10 +156,9 @@ def apply_segmentation():
     output = cv2.bitwise_not(mask)
 
     # Save the segmented image
-    segmented_filename = os.path.splitext(filename)[0] + '_segmented.png'
+    segmented_filename = f'{os.path.splitext(filename)[0]}_segmented.png'
     segmented_path = os.path.join(SEGMENTED_FOLDER, segmented_filename)
     cv2.imwrite(segmented_path, output)
-
     return jsonify({"message": "Segmentation applied successfully!"})
 
 if __name__ == '__main__':
